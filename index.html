@@ -9,6 +9,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
         h1 { color: var(--primary); text-align: center; font-size: 20px; }
+        h2 { font-size: 16px; color: #555; margin-top: 20px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
@@ -20,6 +21,11 @@
         .config-area input { margin-bottom: 10px; font-family: monospace; }
         .hidden { display: none; }
         .loading { text-align: center; color: #666; margin-top: 10px; display: none; }
+        
+        /* 待办清单样式 */
+        .todo-item { display: flex; align-items: flex-start; margin-bottom: 10px; padding: 8px; background: #f9f9f9; border-radius: 6px; }
+        .todo-item input[type="checkbox"] { margin-top: 4px; margin-right: 10px; width: 18px; height: 18px; flex-shrink: 0; }
+        .todo-label { font-weight: normal; font-size: 14px; margin: 0; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -29,15 +35,18 @@
     <!-- 配置区 -->
     <div id="configPanel" class="config-area">
         <p style="margin:0 0 10px 0; font-weight:bold; color:#d32f2f;">⚙️ 首次使用配置 (Firebase)</p>
-        <p style="font-size:12px; color:#666; margin-bottom:10px;">请输入 Firebase 项目配置信息</p>
-        <input type="text" id="apiKey" placeholder="API Key (AIza...)" />
-        <input type="text" id="authDomain" placeholder="Auth Domain (xxx.web.app)" style="margin-top:5px;" />
-        <input type="text" id="dbUrl" placeholder="Database URL (https://xxx.firebaseio.com)" style="margin-top:5px;" />
+        <input type="text" id="apiKey" placeholder="API Key" />
+        <input type="text" id="authDomain" placeholder="Auth Domain" style="margin-top:5px;" />
+        <input type="text" id="dbUrl" placeholder="Database URL" style="margin-top:5px;" />
         <button class="btn" onclick="saveConfig()" style="margin-top:10px;">保存配置</button>
     </div>
 
     <!-- 表单区 -->
     <div id="formPanel" class="hidden">
+        <div class="form-group">
+            <label>提交者姓名</label>
+            <input type="text" id="submitter" placeholder="您的称呼" />
+        </div>
         <div class="form-group">
             <label>日期</label>
             <input type="date" id="dateVal" />
@@ -50,16 +59,35 @@
                 <option value="未开始">❌ 未开始</option>
             </select>
         </div>
+
+        <h2>📝 今日待办清单</h2>
+        <div class="todo-item">
+            <input type="checkbox" id="todo1" />
+            <label for="todo1" class="todo-label">地图标注：标出 5 家目标寺庙/公墓</label>
+        </div>
+        <div class="todo-item">
+            <input type="checkbox" id="todo2" />
+            <label for="todo2" class="todo-label">资料准备：打印合作计划书</label>
+        </div>
+        <div class="todo-item">
+            <input type="checkbox" id="todo3" />
+            <label for="todo3" class="todo-label">话术演练：对着镜子练习 3 遍</label>
+        </div>
+        <div class="todo-item">
+            <input type="checkbox" id="todo4" />
+            <label for="todo4" class="todo-label">实地踩点：若有时间，去现场观察</label>
+        </div>
+
         <div class="form-group">
-            <label>关键数据</label>
+            <label>关键数据 (选填)</label>
             <input type="text" id="keyData" placeholder="例如：标注 5 家，拜访 1 家" />
         </div>
         <div class="form-group">
-            <label>遇到阻力</label>
+            <label>遇到阻力 (选填)</label>
             <textarea id="obstacles" placeholder="例如：话术生硬，对方顾虑政策..."></textarea>
         </div>
         <div class="form-group">
-            <label>明日计划</label>
+            <label>明日计划 (选填)</label>
             <input type="text" id="plan" placeholder="例如：实地拜访第一家" />
         </div>
         <button class="btn" onclick="submitData()">🚀 提交并生成反馈</button>
@@ -70,7 +98,7 @@
     <div id="resultPanel" class="success">
         <p style="margin:0 0 10px 0; font-weight:bold;">✅ 提交成功！数据已存入 Firebase</p>
         <p style="font-size:12px; margin-bottom:5px;">请复制下方内容发送给 AI：</p>
-        <textarea id="resultText" style="height:120px; background:#fff; color:#333; border:1px solid #ccc; width:100%;"></textarea>
+        <textarea id="resultText" style="height:140px; background:#fff; color:#333; border:1px solid #ccc; width:100%;"></textarea>
         <button class="btn" onclick="copyResult()" style="margin-top:10px; background:#fff; color:#4CAF50; border:1px solid #4CAF50;">复制并去发送</button>
     </div>
 </div>
@@ -89,13 +117,8 @@
 
         if(!apiKey || !authDomain || !dbUrl) { alert('请填写完整配置'); return; }
 
-        const firebaseConfig = {
-            apiKey: apiKey,
-            authDomain: authDomain,
-            databaseURL: dbUrl,
-            projectId: authDomain.split('.')[0] || 'pet-funeral'
-        };
-
+        const firebaseConfig = { apiKey, authDomain, databaseURL: dbUrl, projectId: authDomain.split('.')[0] };
+        
         try {
             const app = initializeApp(firebaseConfig);
             db = getDatabase(app);
@@ -114,22 +137,27 @@
     window.submitData = function() {
         if(!db) { alert('数据库未初始化'); return; }
 
+        const submitter = document.getElementById('submitter').value || '未具名';
         const date = document.getElementById('dateVal').value;
         const status = document.getElementById('statusVal').value;
         const keyData = document.getElementById('keyData').value;
         const obstacles = document.getElementById('obstacles').value;
         const plan = document.getElementById('plan').value;
 
-        const md = `【宠物殡葬·每日反馈】\n📅 日期：${date}\n✅ 状态：${status}\n📊 数据：${keyData}\n⚠️ 阻力：${obstacles}\n📅 计划：${plan}`;
+        // 收集待办
+        const todos = [];
+        if(document.getElementById('todo1').checked) todos.push("地图标注");
+        if(document.getElementById('todo2').checked) todos.push("资料准备");
+        if(document.getElementById('todo3').checked) todos.push("话术演练");
+        if(document.getElementById('todo4').checked) todos.push("实地踩点");
+        const todoStr = todos.length > 0 ? todos.join(", ") : "无";
+        const todoCount = todos.length;
+
+        const md = `【宠物殡葬·每日反馈】\n👤 提交者：${submitter}\n📅 日期：${date}\n✅ 状态：${status}\n📝 已完成任务：${todoStr} (共${todoCount}项)\n📊 数据：${keyData}\n⚠️ 阻力：${obstacles}\n📅 计划：${plan}`;
 
         const logData = {
-            date: date,
-            status: status,
-            keyData: keyData,
-            obstacles: obstacles,
-            plan: plan,
-            rawMarkdown: md,
-            timestamp: Date.now()
+            submitter, date, status, keyData, obstacles, plan, todoStr, todoCount,
+            rawMarkdown: md, timestamp: Date.now()
         };
 
         document.getElementById('loading').style.display = 'block';
@@ -154,7 +182,6 @@
         alert("已复制！请去飞书发送给 AI。");
     };
 
-    // 初始化检查
     window.onload = function() {
         const apiKey = localStorage.getItem('fb_apiKey');
         const authDomain = localStorage.getItem('fb_authDomain');
